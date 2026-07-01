@@ -1,5 +1,6 @@
 ---
 title: "接口发布测试文章"
+slug: "api-post-test"
 status: "draft"
 categories:
   - "linux"
@@ -7,6 +8,7 @@ tags:
   - "nginx"
   - "REST API"
 author: 2
+excerpt: "这是文章摘要"
 ---
 
 # 接口发布测试文章
@@ -30,15 +32,3 @@ systemctl reload nginx
 |------|------|
 | Nginx | Web 服务 |
 | PHP-FPM | PHP 运行服务 |
-
-### 引用示例
-
-> WordPress REST API 提供了强大的远程操作能力。
-
-### 列表示例
-
-- 支持分类
-- 支持标签
-- 支持作者
-- 支持摘要
-- 支持别名
