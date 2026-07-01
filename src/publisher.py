@@ -1,9 +1,10 @@
 import os
 import json
+from datetime import datetime
 
 from src.config import Config
 from src.wordpress_client import WordPressClient
-from src.article_parser import parse_article, extract_local_images, replace_image_srcs
+from src.article_parser import parse_article, extract_local_images, replace_image_srcs, update_front_matter
 
 
 class Publisher:
@@ -136,7 +137,25 @@ class Publisher:
         print(f"[INFO] Post created: ID {result['post_id']}")
         if result["link"]:
             print(f"[INFO] URL: {result['link']}")
+
+        # --- write slug + post info back to original file ---
+        write_ok = self._write_back(filepath, result)
+        result["write_back"] = write_ok
+        if write_ok:
+            print(f"[INFO] Slug/wp_post_id written back to: {filepath}")
+        else:
+            print(f"[WARN] Post created, but failed to write slug back to local file")
         return result
+
+    def _write_back(self, filepath, result):
+        fields = {
+            "slug": result.get("slug"),
+            "wp_post_id": result.get("post_id"),
+            "wp_link": result.get("link"),
+            "status": result.get("status"),
+            "last_published_at": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        }
+        return update_front_matter(filepath, fields)
 
     def _build_post_data(self, article, category_ids, tag_ids, featured_media_id):
         post_data = {

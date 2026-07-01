@@ -120,3 +120,50 @@ def parse_article(filepath, config):
         excerpt=excerpt,
         cover=cover,
     )
+
+
+def update_front_matter(filepath, fields):
+    with open(filepath, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    if content.startswith("---"):
+        parts = content.split("---", 2)
+        if len(parts) >= 3:
+            try:
+                fm = yaml.safe_load(parts[1])
+            except yaml.YAMLError:
+                fm = {}
+            if not isinstance(fm, dict):
+                fm = {}
+            body = parts[2]
+        else:
+            fm = {}
+            body = content
+    else:
+        fm = {}
+        body = content
+
+    changed = False
+    for k, v in fields.items():
+        if v is not None and fm.get(k) != v:
+            fm[k] = v
+            changed = True
+
+    if not changed:
+        return True
+
+    new_yaml = yaml.dump(fm, default_flow_style=False, allow_unicode=True, sort_keys=False).strip()
+    new_content = f"---\n{new_yaml}\n---{body}"
+
+    tmp = filepath + ".tmp"
+    try:
+        with open(tmp, "w", encoding="utf-8") as f:
+            f.write(new_content)
+        os.replace(tmp, filepath)
+        return True
+    except Exception:
+        try:
+            os.remove(tmp)
+        except Exception:
+            pass
+        return False
