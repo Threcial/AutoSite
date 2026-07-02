@@ -1,0 +1,54 @@
+site:
+  name: "threcial.cn"
+  base_url: "https://threcial.cn"
+  api_base: "https://threcial.cn/wp-json/wp/v2"
+  username: "api_writer"
+  application_password: "xxxx xxxx xxxx xxxx xxxx xxxx"
+  verify_ssl: true
+  timeout: 30
+
+defaults:
+  status: "draft"
+  author: 2
+  categories: []
+  tags: []
+  excerpt: ""
+  auto_create_categories: false
+  auto_create_tags: true
+
+upload:
+  write_back: true
+  backup_before_write: true
+  standardize_frontmatter: true
+  title_match_enabled: true
+  title_match_strict: true
+  allow_publish_status: false
+  update_detection_order:
+    - "wp_post_id"
+    - "slug"
+    - "state"
+    - "title_exact_match"
+
+markdown:
+  convert_to_html: true
+  first_h1_as_title: true
+  remove_first_h1_from_content: false
+  extensions:
+    - "extra"
+    - "tables"
+    - "fenced_code"
+    - "codehilite"
+    - "toc"
+    - "sane_lists"
+
+notification:
+  enabled: true
+  success_popup: true
+  error_popup: true
+
+logs:
+  history_file: "logs/upload-history.jsonl"
+  latest_file: "logs/upload-latest.json"
+
+state:
+  file: "state/state.json"

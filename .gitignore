@@ -1,7 +1,11 @@
-.env
+config.yaml
 logs/
+state/
 __pycache__/
 *.pyc
 *.pyo
 .DS_Store
-AGENT.md
+*.bak
+*.egg-info/
+test_articles/
+.env
