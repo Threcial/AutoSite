@@ -92,6 +92,15 @@ class WordPressClient:
     def get_or_create_category(self, name, auto_create=False):
         existing = self.get_category_by_name(name)
         if existing is None:
+            if not auto_create:
+                print(f"[ERROR] Category '{name}' not found and auto_create_categories is disabled")
+                return None
+            created = self.create_category(name)
+            if isinstance(created, dict) and "id" in created:
+                print(f"[INFO] Created category: {name} (ID {created['id']})")
+                return created["id"]
+            err = created
+            print(f"[ERROR] Failed to create category '{name}': {err.get('error_code')} {err.get('error_message')}")
             return None
         if isinstance(existing, dict) and "id" in existing:
             return existing["id"]
@@ -126,6 +135,15 @@ class WordPressClient:
     def get_or_create_tag(self, name, auto_create=False):
         existing = self.get_tag_by_name(name)
         if existing is None:
+            if not auto_create:
+                print(f"[ERROR] Tag '{name}' not found and auto_create_tags is disabled")
+                return None
+            created = self.create_tag(name)
+            if isinstance(created, dict) and "id" in created:
+                print(f"[INFO] Created tag: {name} (ID {created['id']})")
+                return created["id"]
+            err = created
+            print(f"[ERROR] Failed to create tag '{name}': {err.get('error_code')} {err.get('error_message')}")
             return None
         if isinstance(existing, dict) and "id" in existing:
             return existing["id"]

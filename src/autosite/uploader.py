@@ -128,9 +128,10 @@ class Uploader:
 
     def _resolve_categories(self, fm):
         ids = []
-        names = fm.get("categories", [])
-        if not names:
+        raw = fm.get("categories", [])
+        if not raw:
             return ids
+        names = raw if isinstance(raw, list) else [raw]
         for name in names:
             cid = self.client.get_or_create_category(name, auto_create=self.config.auto_create_categories)
             if cid is None:
@@ -140,9 +141,10 @@ class Uploader:
 
     def _resolve_tags(self, fm):
         ids = []
-        names = fm.get("tags", [])
-        if not names:
+        raw = fm.get("tags", [])
+        if not raw:
             return ids
+        names = raw if isinstance(raw, list) else [raw]
         for name in names:
             tid = self.client.get_or_create_tag(name, auto_create=self.config.auto_create_tags)
             if tid is None:

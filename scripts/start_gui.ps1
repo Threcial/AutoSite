@@ -1,10 +1,14 @@
 ﻿$ProjectRoot = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $ProjectRoot
 
-$Python = "python"
-$VenvPython = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
+$Python = "pythonw"
+$VenvPython = Join-Path $ProjectRoot ".venv\Scripts\pythonw.exe"
+$VenvPythonFallback = Join-Path $ProjectRoot ".venv\Scripts\python.exe"
+
 if (Test-Path -LiteralPath $VenvPython) {
     $Python = $VenvPython
+} elseif (Test-Path -LiteralPath $VenvPythonFallback) {
+    $Python = $VenvPythonFallback
 }
 
-& $Python -m autosite gui
+Start-Process -NoNewWindow -FilePath $Python -ArgumentList "-m autosite gui"
