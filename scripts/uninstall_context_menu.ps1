@@ -1,4 +1,4 @@
-$commandKey = "HKCU:\Software\Classes\SystemFileAssociations\.md\shell\UploadToThrecial"
+﻿$commandKey = "HKCU:\Software\Classes\SystemFileAssociations\.md\shell\UploadToThrecial"
 
 if (Test-Path $commandKey) {
     try {

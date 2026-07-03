@@ -7,6 +7,11 @@ from .wordpress_client import WordPressClient
 from .uploader import Uploader
 
 
+def cmd_gui():
+    from .gui import main as gui_main
+    gui_main()
+
+
 def cmd_check(config):
     print(f"[INFO] WordPress: {config.base_url}")
     print(f"[INFO] Checking connection and authentication...")
@@ -20,16 +25,22 @@ def cmd_check(config):
         timeout=config.timeout,
     )
 
-    user = client.check_auth()
-    if user is None:
-        print(f"[ERROR] Authentication failed")
+    result = client.check_auth()
+    if result is None:
+        print(f"[ERROR] Authentication failed (no response)")
+        print(f"[HINT]  Check network and config.yaml: base_url")
+        return 1
+
+    if "error_code" in result:
+        print(f"[ERROR] Authentication failed: {result.get('http_status')} {result.get('error_code')}")
+        print(f"       {result.get('error_message')}")
         print(f"[HINT]  Check config.yaml: username / application_password")
         return 1
 
     print(f"[INFO] Authentication successful")
-    print(f"[INFO] User ID:   {user.get('id')}")
-    print(f"[INFO] Username:  {user.get('slug', user.get('name'))}")
-    print(f"[INFO] Display:   {user.get('name')}")
+    print(f"[INFO] User ID:   {result.get('id')}")
+    print(f"[INFO] Username:  {result.get('slug', result.get('name'))}")
+    print(f"[INFO] Display:   {result.get('name')}")
     print(f"[INFO] Site URL:  {config.base_url}")
     return 0
 
@@ -76,6 +87,9 @@ def main():
 
     command = sys.argv[1]
 
+    if command == "gui":
+        return cmd_gui()
+
     if command in ("install-context-menu",):
         return cmd_install_context_menu()
 
@@ -97,7 +111,7 @@ def main():
         return cmd_upload(config, filepath, dry_run)
 
     print(f"[ERROR] Unknown command: {command}")
-    print("Available commands: check, upload, install-context-menu, uninstall-context-menu")
+    print("Available commands: check, upload, install-context-menu, uninstall-context-menu, gui")
     return 1
 
 

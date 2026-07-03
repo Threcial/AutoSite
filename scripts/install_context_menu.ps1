@@ -1,4 +1,4 @@
-$menuName = "上传到 threcial.cn"
+﻿$menuName = "上传到 threcial.cn"
 $commandKey = "HKCU:\Software\Classes\SystemFileAssociations\.md\shell\UploadToThrecial"
 $commandValue = "`"$PSScriptRoot\upload_md.ps1`" `"%1`""
 

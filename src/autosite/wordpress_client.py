@@ -23,11 +23,28 @@ class WordPressClient:
     def _post(self, path, json=None):
         return self.session.post(self._url(path), json=json, timeout=self.timeout)
 
+    def _parse_error(self, resp):
+        try:
+            body = resp.json()
+            if isinstance(body, dict):
+                return {
+                    "error_code": body.get("code", "unknown"),
+                    "error_message": body.get("message", ""),
+                    "http_status": resp.status_code,
+                }
+        except Exception:
+            pass
+        return {
+            "error_code": "http_error",
+            "error_message": f"HTTP {resp.status_code}",
+            "http_status": resp.status_code,
+        }
+
     def check_auth(self):
         resp = self._get("users/me")
         if resp.status_code == 200:
             return resp.json()
-        return None
+        return self._parse_error(resp)
 
     def get_post_by_slug(self, slug):
         resp = self._get("posts", params={"slug": slug, "_fields": "id,slug,link,title,status"})
@@ -35,25 +52,26 @@ class WordPressClient:
             data = resp.json()
             if data:
                 return data[0]
-        return None
+            return None
+        return self._parse_error(resp)
 
     def search_posts_by_title(self, title):
         resp = self._get("posts", params={"search": title, "_fields": "id,slug,link,title,status"})
         if resp.status_code == 200:
             return resp.json()
-        return None
+        return self._parse_error(resp)
 
     def create_post(self, data):
         resp = self._post("posts", json=data)
         if resp.status_code in (200, 201):
             return resp.json()
-        return None
+        return self._parse_error(resp)
 
     def update_post(self, post_id, data):
         resp = self._post(f"posts/{post_id}", json=data)
         if resp.status_code in (200, 201):
             return resp.json()
-        return None
+        return self._parse_error(resp)
 
     def get_category_by_name(self, name):
         resp = self._get("categories", params={"search": name, "_fields": "id,name"})
@@ -62,25 +80,31 @@ class WordPressClient:
             for cat in data:
                 if cat.get("name") == name:
                     return cat
-        return None
+            return None
+        return self._parse_error(resp)
 
     def create_category(self, name):
         resp = self._post("categories", json={"name": name})
         if resp.status_code in (200, 201):
             return resp.json()
-        return None
+        return self._parse_error(resp)
 
     def get_or_create_category(self, name, auto_create=False):
         existing = self.get_category_by_name(name)
-        if existing:
+        if existing is None:
+            return None
+        if isinstance(existing, dict) and "id" in existing:
             return existing["id"]
         if not auto_create:
-            print(f"[ERROR] Category '{name}' not found and auto_create_categories is disabled")
+            err = existing
+            print(f"[ERROR] Category '{name}' not found and auto_create_categories is disabled ({err.get('error_code')})")
             return None
         created = self.create_category(name)
-        if created:
+        if isinstance(created, dict) and "id" in created:
             print(f"[INFO] Created category: {name} (ID {created['id']})")
             return created["id"]
+        err = created
+        print(f"[ERROR] Failed to create category '{name}': {err.get('error_code')} {err.get('error_message')}")
         return None
 
     def get_tag_by_name(self, name):
@@ -90,25 +114,31 @@ class WordPressClient:
             for tag in data:
                 if tag.get("name") == name:
                     return tag
-        return None
+            return None
+        return self._parse_error(resp)
 
     def create_tag(self, name):
         resp = self._post("tags", json={"name": name})
         if resp.status_code in (200, 201):
             return resp.json()
-        return None
+        return self._parse_error(resp)
 
     def get_or_create_tag(self, name, auto_create=False):
         existing = self.get_tag_by_name(name)
-        if existing:
+        if existing is None:
+            return None
+        if isinstance(existing, dict) and "id" in existing:
             return existing["id"]
         if not auto_create:
-            print(f"[ERROR] Tag '{name}' not found and auto_create_tags is disabled")
+            err = existing
+            print(f"[ERROR] Tag '{name}' not found and auto_create_tags is disabled ({err.get('error_code')})")
             return None
         created = self.create_tag(name)
-        if created:
+        if isinstance(created, dict) and "id" in created:
             print(f"[INFO] Created tag: {name} (ID {created['id']})")
             return created["id"]
+        err = created
+        print(f"[ERROR] Failed to create tag '{name}': {err.get('error_code')} {err.get('error_message')}")
         return None
 
     def upload_media(self, filepath):
@@ -125,7 +155,7 @@ class WordPressClient:
             )
         if resp.status_code in (200, 201):
             return resp.json()
-        return None
+        return self._parse_error(resp)
 
     @staticmethod
     def _guess_mime(filepath):

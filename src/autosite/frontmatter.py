@@ -8,6 +8,30 @@ from .utils import atomic_write, backup_file
 FM_DELIMITER = "---"
 FM_PATTERN = re.compile(r"^---\s*\n(.*?)\n---\s*\n?", re.DOTALL)
 
+def _format_scalar(value):
+    if isinstance(value, bool):
+        return str(value).lower()
+    if isinstance(value, int):
+        return str(value)
+    s = str(value)
+    if not s or s.strip() != s or any(c in s for c in ":,#{}[]&*?|-<>!=%@`"):
+        return yaml.dump(s, allow_unicode=True, default_style='"').strip()
+    return s
+
+
+def _update_fm_text_inplace(fm_text, fields):
+    for key, value in fields.items():
+        if value is None:
+            continue
+        encoded = _format_scalar(value)
+        pat = re.compile(r'^' + re.escape(key) + r'\s*:.*?$', re.MULTILINE)
+        line = f"{key}: {encoded}"
+        if pat.search(fm_text):
+            fm_text = pat.sub(line, fm_text)
+        else:
+            fm_text += "\n" + line
+    return fm_text
+
 
 def parse_frontmatter(content):
     match = FM_PATTERN.match(content)
@@ -73,20 +97,20 @@ def standardize_frontmatter(fm, config, title=None):
     return result
 
 
-def write_frontmatter(filepath, fm, body, backup=True):
-    if backup:
-        backup_file(filepath)
-    new_content = build_frontmatter_yaml(fm) + "\n\n" + body.lstrip("\n")
-    atomic_write(filepath, new_content)
-
-
-def update_frontmatter_fields(filepath, fields, backup=True):
+def update_frontmatter_fields(filepath, fields):
     with open(filepath, "r", encoding="utf-8") as f:
         content = f.read()
-    fm, body = parse_frontmatter(content)
-    for key, value in fields.items():
-        if value is not None:
-            fm[key] = value
+
+    match = FM_PATTERN.match(content)
+    if not match:
+        return
+
+    fm_text = match.group(1)
+    body = content[match.end():]
+
     now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-    fm["last_uploaded_at"] = now
-    write_frontmatter(filepath, fm, body, backup=backup)
+    fields["last_uploaded_at"] = now
+
+    fm_text = _update_fm_text_inplace(fm_text, fields)
+    new_content = "---\n" + fm_text + "\n---" + body
+    atomic_write(filepath, new_content)

@@ -72,11 +72,15 @@ class Uploader:
             elif method == "slug":
                 slug = fm.get("slug")
                 if slug:
-                    post = self.client.get_post_by_slug(slug)
-                    if post:
-                        print(f"[INFO] Found slug='{slug}', post_id={post['id']}, will update")
-                        return {"type": "update", "post_id": post["id"], "method": "slug"}
-                    print(f"[WARN] Slug '{slug}' not found on remote, will create")
+                    result = self.client.get_post_by_slug(slug)
+                    if result is None:
+                        print(f"[WARN] Slug '{slug}' not found on remote, will create")
+                    elif "error_code" in result:
+                        print(f"[ERROR] Slug lookup failed: {result.get('http_status')} {result.get('error_code')} - {result.get('error_message')}")
+                        sys.exit(1)
+                    else:
+                        print(f"[INFO] Found slug='{slug}', post_id={result['id']}, will update")
+                        return {"type": "update", "post_id": result["id"], "method": "slug"}
 
             elif method == "state":
                 post_id = self.state.get_post_id(filepath)
@@ -89,17 +93,38 @@ class Uploader:
                     title = fm.get("title", "")
                     if title:
                         results = self.client.search_posts_by_title(title)
-                        if results:
-                            if len(results) == 1:
-                                post = results[0]
-                                if not self.config.title_match_strict or post.get("title", {}).get("rendered") == title:
-                                    print(f"[INFO] Title matched, post_id={post['id']}, will update")
-                                    return {"type": "update", "post_id": post["id"], "method": "title_match"}
-                            else:
-                                print(f"[ERROR] Title '{title}' matched {len(results)} posts, cannot auto-select. Add wp_post_id or slug to Front Matter.")
-                                sys.exit(1)
+                        if results is None:
+                            pass
+                        elif isinstance(results, dict) and "error_code" in results:
+                            print(f"[ERROR] Title search failed: {results.get('http_status')} {results.get('error_code')} - {results.get('error_message')}")
+                            sys.exit(1)
+                        elif len(results) == 1:
+                            post = results[0]
+                            if not self.config.title_match_strict or post.get("title", {}).get("rendered") == title:
+                                print(f"[INFO] Title matched, post_id={post['id']}, will update")
+                                return {"type": "update", "post_id": post["id"], "method": "title_match"}
+                        elif len(results) > 1:
+                            print(f"[ERROR] Title '{title}' matched {len(results)} posts, cannot auto-select. Add wp_post_id or slug to Front Matter.")
+                            sys.exit(1)
 
         return {"type": "create", "method": "none"}
+
+    def _handle_api_error(self, result, context, filepath, action):
+        if result is None:
+            self.logger.log_failure(action, filepath, "no_response", "No response from server", None)
+            if self.config.notification_enabled and self.config.error_popup:
+                notify_failure(filepath, "No Response", "no_response", "No response from server")
+            return True
+        if "error_code" in result:
+            code = result.get("error_code", "unknown")
+            msg = result.get("error_message", "")
+            http = result.get("http_status")
+            print(f"[ERROR] {context}: {http} {code} - {msg}")
+            self.logger.log_failure(action, filepath, code, msg, http)
+            if self.config.notification_enabled and self.config.error_popup:
+                notify_failure(filepath, http or "API Error", code, msg)
+            return True
+        return False
 
     def _resolve_categories(self, fm):
         ids = []
@@ -191,6 +216,9 @@ class Uploader:
             if result is None:
                 print(f"[ERROR] Image upload failed: {src}")
                 return None
+            if "error_code" in result:
+                print(f"[ERROR] Image upload failed: {src} - {result.get('http_status')} {result.get('error_code')} {result.get('error_message')}")
+                return None
             src_map[src] = result["source_url"]
             self.state.set_media(abs_path, result["id"], result["source_url"])
             print(f"[INFO]   Image uploaded: {src} -> {result['source_url']}")
@@ -224,6 +252,9 @@ class Uploader:
         result = self.client.upload_media(cover_path)
         if result is None:
             print(f"[ERROR] Cover image upload failed: {cover}")
+            sys.exit(1)
+        if "error_code" in result:
+            print(f"[ERROR] Cover image upload failed: {cover} - {result.get('http_status')} {result.get('error_code')} {result.get('error_message')}")
             sys.exit(1)
         self.state.set_media(cover_path, result["id"], result["source_url"])
         print(f"[INFO]   Cover uploaded: {result['source_url']}")
@@ -264,9 +295,7 @@ class Uploader:
             payload["featured_media"] = featured_media_id
 
         result = self.client.create_post(payload)
-        if result is None:
-            self.logger.log_failure("create", filepath, "api_error", "WordPress API returned an error", None)
-            notify_failure(filepath, "API Error", "api_error", "WordPress API returned an error")
+        if self._handle_api_error(result, "Create post", filepath, "create"):
             return 1
 
         post_id = result["id"]
@@ -282,7 +311,8 @@ class Uploader:
         self.logger.log_success("create", filepath, post_id, slug, link, api_status)
 
         action_label = "创建新文章"
-        notify_success(action_label, title, post_id, slug, api_status, link)
+        if self.config.notification_enabled and self.config.success_popup:
+            notify_success(action_label, title, post_id, slug, api_status, link)
 
         return 0
 
@@ -323,9 +353,7 @@ class Uploader:
             payload["featured_media"] = featured_media_id
 
         result = self.client.update_post(post_id, payload)
-        if result is None:
-            self.logger.log_failure("update", filepath, "api_error", "WordPress API returned an error", None)
-            notify_failure(filepath, "API Error", "api_error", "WordPress API returned an error")
+        if self._handle_api_error(result, "Update post", filepath, "update"):
             return 1
 
         new_post_id = result["id"]
@@ -341,7 +369,8 @@ class Uploader:
         self.logger.log_success("update", filepath, new_post_id, slug, link, api_status)
 
         action_label = "更新文章"
-        notify_success(action_label, title, new_post_id, slug, api_status, link)
+        if self.config.notification_enabled and self.config.success_popup:
+            notify_success(action_label, title, new_post_id, slug, api_status, link)
 
         return 0
 
@@ -360,5 +389,5 @@ class Uploader:
             fields["last_published_at"] = now
         else:
             fields["last_updated_at"] = now
-        update_frontmatter_fields(filepath, fields, backup=self.config.backup_before_write)
+        update_frontmatter_fields(filepath, fields)
         print(f"[INFO] Front Matter updated in: {filepath}")
